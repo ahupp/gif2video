@@ -23,9 +23,6 @@ motivating the two-step process.
 There's probably a simpler solution available but this works well enough.
 """
 
-logging.basicConfig(level=logging.INFO)
-
-start = time.time()
 
 def listdir(dirname):
     return sorted([os.path.join(dirname, i)
@@ -38,6 +35,8 @@ def ffmpeg_concat(inputs, output, copy):
             f.write(b"file %s\n" % fname.encode("utf-8"),)
         f.flush()
 
+        # copy does a direct copy (e.g a bunch of mp4 into a new mp4)
+        # while without copy this does an encoding
         if copy:
             copyarg = ["-vcodec", "copy",
                        "-acodec", "copy"]
@@ -53,49 +52,45 @@ def ffmpeg_concat(inputs, output, copy):
         subprocess.run(cmd)
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--frames_per_block", 
-    type=int,
-    help="the number of frames to accumulate before encoding a block",
-    # assume 24fps, so 10s of video
-    default=240)
-parser.add_argument("indir",
-                    help="directory of input images")
-parser.add_argument("outdir",
-                    help="directory of output videos")
-parser.add_argument("finalvideo",
-                    help="path to final video file")
-args = parser.parse_args()                   
+def main():
+    logging.basicConfig(level=logging.INFO)
 
-infiles = listdir(args.indir)
+    start = time.time()
 
-if len(infiles) < args.frames_per_block:
-    logging.info("Found %d, frames_per_block is %d.  Exiting.",
-            len(infiles), args.frames_per_block)
-    sys.exit()
-else:
-    logging.info("Found %d files, encoding", len(infiles))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--frames_per_block", 
+        type=int,
+        help="the number of frames to accumulate before encoding a block",
+        # assume 24fps, so 10s of video
+        default=240)
+    parser.add_argument("indir",
+                        help="directory of input images")
+    parser.add_argument("outdir",
+                        help="directory of output videos")
+    args = parser.parse_args()                   
 
-# output file name is the basename of the last input file
-oname = os.path.splitext(os.path.basename(infiles[-1]))[0]
-outpath = os.path.abspath(os.path.join(args.outdir, oname + ".mp4"))
-try:
-    ffmpeg_concat(infiles, outpath, False)
-finally:
-    for i in infiles:
-        os.unlink(i)
+    infiles = listdir(args.indir)
+    # limit to the first N frames, to avoid OOMing my poor tiny machine
+    infiles = infiles[:args.frames_per_block]
 
-if not os.path.exists(args.finalvideo):
-    logging.info("Output video not found, copying")
-    shutil.copyfile(outpath, args.finalvideo)
-else:   
-    _, fname = tempfile.mkstemp(suffix=".mp4")
+    if len(infiles) < args.frames_per_block:
+        logging.info("Found %d, frames_per_block is %d.  Exiting.",
+                len(infiles), args.frames_per_block)
+        sys.exit()
+    else:
+        logging.info("Found %d files, encoding", len(infiles))
+
+    # output file name is the basename of the last input file
+    oname = os.path.splitext(os.path.basename(infiles[-1]))[0]
+    outpath = os.path.abspath(os.path.join(args.outdir, oname + ".mp4"))
     try:
-        ffmpeg_concat([args.finalvideo, outpath], fname, True)
-        logging.info("Replacing %s", args.finalvideo)
-        os.replace(fname, args.finalvideo)
-    except:
-        os.unlink(fname)
+        ffmpeg_concat(infiles, outpath, False)
+    finally:
+        for i in infiles:
+            os.unlink(i)
 
-logging.info("Completed in %d sec", time.time() - start)
+    logging.info("Completed in %d sec", time.time() - start)
+
+if __name__ == "__main__":
+    main()
 
