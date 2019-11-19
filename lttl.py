@@ -63,33 +63,40 @@ def main():
         help="the number of frames to accumulate before encoding a block",
         # assume 24fps, so 10s of video
         default=240)
+    parser.add_argument("--loop", action="store_true",
+                        help="loop forever watching for new images")
     parser.add_argument("indir",
                         help="directory of input images")
     parser.add_argument("outdir",
                         help="directory of output videos")
     args = parser.parse_args()                   
 
-    infiles = listdir(args.indir)
-    # limit to the first N frames, to avoid OOMing my poor tiny machine
-    infiles = infiles[:args.frames_per_block]
+    while True:
+        infiles = listdir(args.indir)
+        # limit to the first N frames, to avoid OOMing my poor tiny machine
+        infiles = infiles[:args.frames_per_block]
 
-    if len(infiles) < args.frames_per_block:
-        logging.info("Found %d, frames_per_block is %d.  Exiting.",
-                len(infiles), args.frames_per_block)
-        sys.exit()
-    else:
-        logging.info("Found %d files, encoding", len(infiles))
+        if len(infiles) < args.frames_per_block:
+            logging.info("Found %d, frames_per_block is %d.",
+                    len(infiles), args.frames_per_block)
+        else:
+            logging.info("Found %d files, encoding", len(infiles))
 
-    # output file name is the basename of the last input file
-    oname = os.path.splitext(os.path.basename(infiles[-1]))[0]
-    outpath = os.path.abspath(os.path.join(args.outdir, oname + ".mp4"))
-    try:
-        ffmpeg_concat(infiles, outpath, False)
-    finally:
-        for i in infiles:
-            os.unlink(i)
+            # output file name is the basename of the last input file
+            oname = os.path.splitext(os.path.basename(infiles[-1]))[0]
+            outpath = os.path.abspath(os.path.join(args.outdir, oname + ".mp4"))
+            try:
+                ffmpeg_concat(infiles, outpath, False)
+            finally:
+                for i in infiles:
+                    os.unlink(i)
 
-    logging.info("Completed in %d sec", time.time() - start)
+            logging.info("Completed in %d sec", time.time() - start)
+
+        if args.loop:
+            time.sleep(4)
+        else:
+            break
 
 if __name__ == "__main__":
     main()

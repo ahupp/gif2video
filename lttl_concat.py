@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 start = time.time()
 
-parser = argparse.ArgumentParser(help="concatate video files")
+parser = argparse.ArgumentParser()
 parser.add_argument("--dest", type=str,
                     help="destination file name")
 parser.add_argument("input", type=str, nargs="+",
